@@ -548,8 +548,9 @@ describe(__filename, () => {
 
       sinon.assert.called(fakeEvent.preventDefault);
       sinon.assert.calledWith(installTheme, imageLink, {
-        ...addon,
+        name: addon.name,
         status: UNINSTALLED,
+        type: addon.type,
       });
     });
 
@@ -604,9 +605,8 @@ describe(__filename, () => {
       expect(props).toMatchObject({
         // Check that `addon` and its properties are spread.
         addon,
-        id: addonId,
         // Check that the installed add-on properties are spread.
-        status: ENABLED,
+        installStatus: ENABLED,
         // Check that client app is copied.
         clientApp,
       });

@@ -85,7 +85,6 @@ export class AddonBase extends React.Component {
     }).isRequired,
     installStatus: PropTypes.string.isRequired,
     addonsByAuthors: PropTypes.array,
-    setCurrentStatus: PropTypes.func.isRequired,
     userAgentInfo: PropTypes.object.isRequired,
   };
 
@@ -615,26 +614,13 @@ export function mapStateToProps(state, ownProps) {
   }
 
   return {
-    addon,
-    // TODO: fix the spreads in https://github.com/mozilla/addons-frontend/issues/1416
-    //
-    // These spreads obscure a lot of hidden properties but they
-    // cannot be deleted until core/reducers/addons, core/installAddon,
-    // and maybe others get fixed up, who knows.
-    //
-    // The withInstallHelpers HOC needs to access properties like id and
-    // properties from addon.theme_data (which are spread onto addon) and
-    // maybe others.
-    ...addon,
-    platformFiles: addon ? addon.platformFiles : {},
-    // The withInstallHelpers HOC also needs to access some properties in
-    // here like guid and probably others.
-    ...installedAddon,
-    installStatus: installedAddon.status || UNKNOWN,
-    clientApp: state.api.clientApp,
-    lang: state.api.lang,
-    userAgentInfo: state.api.userAgentInfo,
     addonsByAuthors,
+    clientApp: state.api.clientApp,
+    installStatus: installedAddon.status || UNKNOWN,
+    lang: state.api.lang,
+    // Required by withInstallHelpers()
+    addon,
+    userAgentInfo: state.api.userAgentInfo,
   };
 }
 

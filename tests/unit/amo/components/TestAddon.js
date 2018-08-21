@@ -79,7 +79,6 @@ import ThemeImage from 'ui/components/ThemeImage';
 function renderProps({
   addon = createInternalAddon(fakeAddon),
   params,
-  setCurrentStatus = sinon.spy(),
   ...customProps
 } = {}) {
   const i18n = fakeI18n();
@@ -103,7 +102,6 @@ function renderProps({
     enable: sinon.stub(),
     install: sinon.stub(),
     installTheme: sinon.stub(),
-    setCurrentStatus,
     status: UNKNOWN,
     uninstall: sinon.stub(),
     // Other props

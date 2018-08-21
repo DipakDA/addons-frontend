@@ -47,9 +47,7 @@ export class AddonBase extends React.Component {
     _tracking: PropTypes.object,
     addon: PropTypes.object.isRequired,
     clientApp: PropTypes.string.isRequired,
-    // This is added by withInstallHelpers()
     defaultInstallSource: PropTypes.string.isRequired,
-    description: PropTypes.string,
     enable: PropTypes.func.isRequired,
     error: PropTypes.string,
     getBrowserThemeData: PropTypes.func.isRequired,
@@ -57,15 +55,11 @@ export class AddonBase extends React.Component {
     hasAddonManager: PropTypes.bool.isRequired,
     heading: PropTypes.string.isRequired,
     i18n: PropTypes.object.isRequired,
-    iconUrl: PropTypes.string,
     install: PropTypes.func.isRequired,
+    installStatus: PropTypes.oneOf(validInstallStates).isRequired,
     installTheme: PropTypes.func.isRequired,
     isAddonEnabled: PropTypes.func,
-    // eslint-disable-next-line react/no-unused-prop-types
-    platformFiles: PropTypes.object,
     setCurrentStatus: PropTypes.func.isRequired,
-    status: PropTypes.oneOf(validInstallStates).isRequired,
-    type: PropTypes.oneOf(validAddonTypes).isRequired,
     uninstall: PropTypes.func.isRequired,
     userAgentInfo: PropTypes.object.isRequired,
   };
@@ -74,13 +68,12 @@ export class AddonBase extends React.Component {
     _config: config,
     _tracking: tracking,
     getClientCompatibility: _getClientCompatibility,
-    platformFiles: {},
   };
 
   getError() {
-    const { error, i18n, status } = this.props;
+    const { error, i18n, installStatus } = this.props;
 
-    return status === ERROR ? (
+    return installStatus === ERROR ? (
       <CSSTransition
         classNames="overlay"
         key="error-overlay"
@@ -100,14 +93,16 @@ export class AddonBase extends React.Component {
   }
 
   getLogo() {
-    const { iconUrl } = this.props;
-    if (this.props.type === ADDON_TYPE_EXTENSION) {
+    const { addon } = this.props;
+
+    if (addon.type === ADDON_TYPE_EXTENSION) {
       return (
         <div className="logo">
-          <img src={iconUrl} alt="" />
+          <img src={addon.icon_url} alt="" />
         </div>
       );
     }
+
     return null;
   }
 
@@ -144,7 +139,7 @@ export class AddonBase extends React.Component {
   }
 
   getDescription() {
-    const { description, type } = this.props;
+    const { description, type } = this.props.addon;
 
     if (isTheme(type)) {
       return null;
@@ -163,9 +158,14 @@ export class AddonBase extends React.Component {
   }
 
   installTheme = (event) => {
+    const { addon, installTheme, installStatus } = this.props;
+
     event.preventDefault();
-    const { addon, installTheme, status } = this.props;
-    installTheme(event.currentTarget, { ...addon, status });
+    installTheme(event.currentTarget, {
+      name: addon.name,
+      status: installStatus,
+      type: addon.type,
+    });
   };
 
   errorMessage() {
@@ -207,10 +207,10 @@ export class AddonBase extends React.Component {
   };
 
   installStaticTheme = async (event) => {
-    const { enable, isAddonEnabled, install, status } = this.props;
+    const { enable, isAddonEnabled, install, installStatus } = this.props;
     event.preventDefault();
 
-    if (status === UNINSTALLED) {
+    if (installStatus === UNINSTALLED) {
       await install();
     }
 
@@ -233,9 +233,9 @@ export class AddonBase extends React.Component {
       hasAddonManager,
       heading,
       install,
+      installStatus,
       installTheme,
       isAddonEnabled,
-      status,
       type,
       uninstall,
       userAgentInfo,
@@ -300,7 +300,7 @@ export class AddonBase extends React.Component {
               install={install}
               installTheme={installTheme}
               puffy={false}
-              status={status || UNKNOWN}
+              status={installStatus || UNKNOWN}
               uninstall={uninstall}
               isAddonEnabled={isAddonEnabled}
             />
@@ -326,16 +326,15 @@ export class AddonBase extends React.Component {
 export function mapStateToProps(state, ownProps) {
   // `ownProps.guid` is already "normalized" with `getGuid()` in the
   // `DiscoPane` container component.
-  const installation = state.installations[ownProps.guid];
+  const installation = state.installations[ownProps.guid] || {};
   const addon = getAddonByGUID(state, ownProps.guid);
 
   return {
-    addon,
-    ...addon,
-    ...installation,
     clientApp: state.api.clientApp,
-    // This is required by the `withInstallHelpers()` HOC, apparently...
-    platformFiles: addon ? addon.platformFiles : {},
+    error: installation.error,
+    installStatus: installation.status || UNKNOWN,
+    // Required by withInstallHelpers()
+    addon,
     userAgentInfo: state.api.userAgentInfo,
   };
 }

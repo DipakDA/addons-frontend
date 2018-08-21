@@ -76,10 +76,9 @@ import { showInfoDialog } from 'core/reducers/infoDialog';
 
 export function installTheme(
   node,
-  addon,
+  { name, status, type },
   { _themeInstall = themeInstall, _tracking = tracking } = {},
 ) {
-  const { name, status, type } = addon;
   if (
     type === ADDON_TYPE_THEME &&
     [DISABLED, UNINSTALLED, UNKNOWN].includes(status)
@@ -131,12 +130,6 @@ export function makeProgressHandler(dispatch, guid) {
   };
 }
 
-export function getGuid(ownProps) {
-  // Returns guid directly on ownProps or if ownProps
-  // has an addons object return the guid from there.
-  return ownProps.guid || (ownProps.addon && ownProps.addon.guid);
-}
-
 export function mapStateToProps(state, ownProps) {
   return {
     getBrowserThemeData() {
@@ -163,9 +156,9 @@ export function makeMapDispatchToProps({
       return mappedProps;
     }
 
-    if (ownProps.platformFiles === undefined) {
-      throw new Error(oneLine`The platformFiles prop is required;
-        ensure the wrapped component defines this property`);
+    if (ownProps.addon === undefined) {
+      throw new Error(oneLine`The addon prop is required; ensure the wrapped
+        component defines this property`);
     }
 
     if (ownProps.userAgentInfo === undefined) {
@@ -299,17 +292,22 @@ export class WithInstallHelpers extends React.Component {
     _addonManager: PropTypes.object,
     _tracking: PropTypes.object,
     defaultInstallSource: PropTypes.string.isRequired,
+    // From react-redux
     dispatch: PropTypes.func.isRequired,
-    guid: PropTypes.string,
-    iconUrl: PropTypes.string,
     hasAddonManager: PropTypes.bool,
     installTheme: PropTypes.func,
     // See ReactRouterLocationType from 'core/types/router'
     location: PropTypes.object,
-    platformFiles: PropTypes.object,
-    name: PropTypes.string,
-    status: PropTypes.string,
-    type: PropTypes.string,
+    // An internal add-on representation
+    addon: PropTypes.shape({
+      guid: PropTypes.string,
+      iconUrl: PropTypes.string,
+      name: PropTypes.string,
+      platformFiles: PropTypes.object,
+      status: PropTypes.string,
+      type: PropTypes.string,
+    }),
+    // From `state.api`
     userAgentInfo: PropTypes.object.isRequired,
   };
 
@@ -321,7 +319,7 @@ export class WithInstallHelpers extends React.Component {
   };
 
   componentDidMount() {
-    this.setCurrentStatus(this.props);
+    this.setCurrentStatus();
   }
 
   componentWillReceiveProps(nextProps) {
@@ -349,51 +347,55 @@ export class WithInstallHelpers extends React.Component {
     return false;
   }
 
-  setCurrentStatus(newProps = this.props) {
+  setCurrentStatus(newProps = {}) {
     const {
       _addonManager,
+      addon,
       defaultInstallSource,
       dispatch,
       hasAddonManager,
       location,
-      platformFiles,
       userAgentInfo,
-    } = this.props;
+    } = {
+      ...this.props,
+      ...newProps,
+    };
+
+    const { guid, platformFiles } = addon;
+
     const installURL = findInstallURL({
       defaultInstallSource,
       location,
       platformFiles,
       userAgentInfo,
     });
+
     if (!hasAddonManager) {
       log.info('No addon manager, cannot set add-on status');
       return Promise.resolve();
     }
 
-    const guid = getGuid(newProps);
     const payload = { guid, url: installURL };
 
     log.info('Setting add-on status');
     return _addonManager
       .getAddon(guid)
       .then(
-        (addon) => {
-          const status = addon.isActive && addon.isEnabled ? ENABLED : DISABLED;
+        ({ isActive, isEnabled }) => {
+          const status = isActive && isEnabled ? ENABLED : DISABLED;
 
           dispatch(setInstallState({ ...payload, status }));
         },
         (error) => {
-          log.info(
-            oneLine`Add-on "${guid}" not found so setting status to
-          UNINSTALLED; exact error: ${error}`,
-          );
+          log.info(oneLine`Add-on "${guid}" not found so setting status to
+            UNINSTALLED; exact error: ${error}`);
+
           dispatch(setInstallState({ ...payload, status: UNINSTALLED }));
         },
       )
       .catch((error) => {
         log.error(`Caught error from addonManager: ${error}`);
-        // Dispatch a generic error should the success/error functions
-        // throw.
+        // Dispatch a generic error should the success/error functions throw.
         dispatch(
           setInstallState({
             guid,
@@ -434,16 +436,14 @@ export class WithInstallHelpers extends React.Component {
     const {
       _addonManager,
       _tracking,
+      addon,
       defaultInstallSource,
       dispatch,
-      guid,
-      iconUrl,
       location,
-      name,
-      platformFiles,
-      type,
       userAgentInfo,
     } = this.props;
+
+    const { guid, iconUrl, name, platformFiles, type } = addon;
 
     return new Promise((resolve) => {
       dispatch({ type: START_DOWNLOAD, payload: { guid } });
@@ -504,6 +504,7 @@ export class WithInstallHelpers extends React.Component {
 
   uninstall({ guid, name, type }) {
     const { _addonManager, _tracking, dispatch } = this.props;
+
     dispatch(setInstallState({ guid, status: UNINSTALLING }));
 
     const action = getAddonTypeForTracking(type);
@@ -535,8 +536,8 @@ export class WithInstallHelpers extends React.Component {
     const exposedPropHelpers = {
       enable: (...args) => this.enable(...args),
       install: (...args) => this.install(...args),
-      setCurrentStatus: (...args) => this.setCurrentStatus(...args),
       isAddonEnabled: (...args) => this.isAddonEnabled(...args),
+      setCurrentStatus: (...args) => this.setCurrentStatus(...args),
       uninstall: (...args) => this.uninstall(...args),
     };
 
