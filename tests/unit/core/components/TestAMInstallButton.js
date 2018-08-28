@@ -205,8 +205,9 @@ describe(__filename, () => {
     sinon.assert.calledOnce(clickEvent.stopPropagation);
 
     sinon.assert.calledWith(installTheme, clickEvent.currentTarget, {
-      ...addon,
+      name: addon.name,
       status: UNINSTALLED,
+      type: addon.type,
     });
   });
 
@@ -555,7 +556,6 @@ describe(__filename, () => {
 
     sinon.assert.calledWith(uninstall, {
       guid: addon.guid,
-      installURL,
       name: addon.name,
       type: addon.type,
     });

@@ -47,6 +47,7 @@ import {
   createFakeTracking,
   createFakeLocation,
   getFakeAddonManagerWrapper,
+  getFakeConfig,
   sampleUserAgentParsed,
   shallowUntilTarget,
   userAgentsByPlatform,
@@ -84,18 +85,15 @@ function componentWithInstallHelpers({
 const defaultProps = (overrides = {}) => {
   const { store } = createStore();
   sinon.stub(store, 'dispatch');
+
   const addon = createInternalAddon(fakeAddon);
+
   return {
-    // TODO: remove this spread. This simulates how both
-    // amo/Addon and disco/Addon spread `addon` after wrapping
-    // themselves in the withInstallHelpers() HOC to get
-    // platformFiles and iconUrl, etc.
-    ...addon,
-    hasAddonManager: true,
     _addonManager: getFakeAddonManagerWrapper(),
+    addon,
     dispatch: store.dispatch,
-    store,
     location: createFakeLocation(),
+    store,
     userAgentInfo: sampleUserAgentParsed,
     ...overrides,
   };
@@ -213,7 +211,6 @@ describe(__filename, () => {
       // Use a spread to simulate how Addon and other components
       // do it in mapStateToProps().
       ...fakeAddon,
-      hasAddonManager: true,
       _addonManager,
       store: createStore().store,
     };
@@ -246,13 +243,21 @@ describe(__filename, () => {
   });
 
   it('does not set the current status in componentDidMount without an addonManager', () => {
-    const _addonManager = getFakeAddonManagerWrapper();
-
-    const props = defaultProps({
+    const _addonManager = getFakeAddonManagerWrapper({
       hasAddonManager: false,
-      _addonManager,
     });
+
+    const props = defaultProps({ _addonManager });
     mount(<WithInstallHelpers {...props} WrappedComponent={() => <div />} />);
+    sinon.assert.notCalled(_addonManager.getAddon);
+  });
+
+  it('does not set the current status in componentDidMount without an addon', () => {
+    const _addonManager = getFakeAddonManagerWrapper();
+    const props = defaultProps({ _addonManager, addon: null });
+
+    mount(<WithInstallHelpers {...props} WrappedComponent={() => <div />} />);
+
     sinon.assert.notCalled(_addonManager.getAddon);
   });
 
@@ -572,8 +577,6 @@ describe(__filename, () => {
   describe('withInstallHelpers', () => {
     const defaultInstallSource = 'some-install-source';
     const WrappedComponent = sinon.stub();
-    let configStub;
-    let mapDispatchToProps;
 
     function getMapStateToProps({
       _tracking,
@@ -584,20 +587,6 @@ describe(__filename, () => {
         _tracking,
       });
     }
-
-    beforeAll(() => {
-      mapDispatchToProps = makeMapDispatchToProps({
-        WrappedComponent,
-        defaultInstallSource,
-      });
-    });
-
-    beforeEach(() => {
-      configStub = sinon
-        .stub(config, 'get')
-        .withArgs('server')
-        .returns(false);
-    });
 
     describe('isAddonEnabled', () => {
       it('returns true when the add-on is enabled', async () => {
@@ -643,7 +632,7 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
+          addon,
           defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -669,13 +658,14 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
+          addon,
           defaultInstallSource: null,
         });
-        const { setCurrentStatus } = root.instance().props;
 
+        const { setCurrentStatus } = root.instance().props;
         dispatch.resetHistory();
-        return setCurrentStatus(addon).then(() => {
+
+        return setCurrentStatus({ addon }).then(() => {
           sinon.assert.calledWith(
             dispatch,
             setInstallState({
@@ -696,14 +686,14 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
-          defaultInstallSource: null,
           _addonManager: getFakeAddonManagerWrapper({
             getAddon: Promise.resolve({
               isActive: false,
               isEnabled: false,
             }),
           }),
+          addon,
+          defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
 
@@ -729,14 +719,14 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
-          defaultInstallSource: null,
           _addonManager: getFakeAddonManagerWrapper({
             getAddon: Promise.resolve({
               isActive: false,
               isEnabled: false,
             }),
           }),
+          addon,
+          defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
 
@@ -762,14 +752,14 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
-          defaultInstallSource: null,
           _addonManager: getFakeAddonManagerWrapper({
             getAddon: Promise.resolve({
               isActive: false,
               isEnabled: true,
             }),
           }),
+          addon,
+          defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
 
@@ -801,8 +791,8 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
           defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -835,8 +825,8 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
           defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -869,8 +859,8 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
           defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -899,8 +889,8 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
           defaultInstallSource: null,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -925,8 +915,8 @@ describe(__filename, () => {
         const addon = createInternalAddon(fakeAddon);
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
         });
         const { setCurrentStatus } = root.instance().props;
 
@@ -951,7 +941,7 @@ describe(__filename, () => {
         );
 
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
+          addon,
           defaultInstallSource,
         });
         const { setCurrentStatus } = root.instance().props;
@@ -1047,15 +1037,15 @@ describe(__filename, () => {
           permissionPromptsEnabled: false,
         });
         const name = 'the-name';
-        const iconUrl = 'https://a.m.o/some-icon.png';
+        const iconUrl = `${config.get('amoCDN')}/some-icon.png`;
         const addon = createInternalAddon({
           ...fakeAddon,
           name,
           icon_url: iconUrl,
         });
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
         });
         const { enable } = root.instance().props;
 
@@ -1083,8 +1073,8 @@ describe(__filename, () => {
           icon_url: iconUrl,
         });
         const { root, dispatch } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
         });
         const { enable } = root.instance().props;
 
@@ -1095,13 +1085,13 @@ describe(__filename, () => {
       });
 
       it('dispatches a FATAL_ERROR', () => {
-        const fakeAddonManager = {
+        const fakeAddonManager = getFakeAddonManagerWrapper({
           enable: sinon.stub().returns(Promise.reject(new Error('hai'))),
-        };
+        });
         const addon = createInternalAddon(fakeAddon);
         const { dispatch, root } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
         });
         const { enable } = root.instance().props;
 
@@ -1118,11 +1108,11 @@ describe(__filename, () => {
       });
 
       it('does not dispatch a FATAL_ERROR when setEnabled is missing', () => {
-        const fakeAddonManager = {
+        const fakeAddonManager = getFakeAddonManagerWrapper({
           enable: sinon
             .stub()
             .returns(Promise.reject(new Error(SET_ENABLE_NOT_AVAILABLE))),
-        };
+        });
         const { root, dispatch } = renderWithInstallHelpers({
           _addonManager: fakeAddonManager,
         });
@@ -1145,8 +1135,8 @@ describe(__filename, () => {
         );
         const fakeAddonManager = getFakeAddonManagerWrapper();
         const { root } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: fakeAddonManager,
+          addon,
           defaultInstallSource,
         });
         const { install } = root.instance().props;
@@ -1165,7 +1155,6 @@ describe(__filename, () => {
         const addon = createInternalAddon(fakeAddon);
         const fakeTracking = createFakeTracking();
         const { root } = renderWithInstallHelpers({
-          ...addon,
           _addonManager: getFakeAddonManagerWrapper({
             // Make the install fail so that we can be sure only
             // the 'start' event gets tracked.
@@ -1174,6 +1163,7 @@ describe(__filename, () => {
               .returns(Promise.reject(new Error('install error'))),
           }),
           _tracking: fakeTracking,
+          addon,
         });
         const { install } = root.instance().props;
 
@@ -1196,8 +1186,8 @@ describe(__filename, () => {
         const addon = createInternalAddon(fakeAddon);
         const fakeTracking = createFakeTracking();
         const { root } = renderWithInstallHelpers({
-          ...addon,
           _tracking: fakeTracking,
+          addon,
         });
         const { install } = root.instance().props;
 
@@ -1220,8 +1210,8 @@ describe(__filename, () => {
         });
         const fakeTracking = createFakeTracking();
         const { root } = renderWithInstallHelpers({
-          ...addon,
           _tracking: fakeTracking,
+          addon,
         });
         const { install } = root.instance().props;
 
@@ -1244,8 +1234,8 @@ describe(__filename, () => {
         });
         const fakeTracking = createFakeTracking();
         const { root } = renderWithInstallHelpers({
-          ...addon,
           _tracking: fakeTracking,
+          addon,
         });
         const { install } = root.instance().props;
 
@@ -1275,16 +1265,16 @@ describe(__filename, () => {
       });
 
       it('should dispatch SHOW_INFO if permissionPromptsEnabled is false', () => {
-        const iconUrl = 'some-icon-url';
+        const iconUrl = `${config.get('amoCDN')}/some-icon.png`;
         const addon = createInternalAddon({
           ...fakeAddon,
           icon_url: iconUrl,
         });
         const props = {
-          ...addon,
           _addonManager: getFakeAddonManagerWrapper({
             permissionPromptsEnabled: false,
           }),
+          addon,
         };
         const { root, dispatch } = renderWithInstallHelpers(props);
         const { install } = root.instance().props;
@@ -1301,16 +1291,16 @@ describe(__filename, () => {
       });
 
       it('should not dispatch SHOW_INFO if permissionPromptsEnabled is true', () => {
-        const iconUrl = 'some-icon-url';
+        const iconUrl = `${config.get('amoCDN')}/some-icon.png`;
         const addon = createInternalAddon({
           ...fakeAddon,
           icon_url: iconUrl,
         });
         const props = {
-          ...addon,
           _addonManager: getFakeAddonManagerWrapper({
             permissionPromptsEnabled: true,
           }),
+          addon,
         };
         const { root, dispatch } = renderWithInstallHelpers(props);
         const { install } = root.instance().props;
@@ -1491,6 +1481,7 @@ describe(__filename, () => {
     });
 
     describe('mapDispatchToProps', () => {
+      const _config = getFakeConfig({ server: false });
       let fakeDispatch;
 
       beforeEach(() => {
@@ -1498,32 +1489,35 @@ describe(__filename, () => {
       });
 
       it('still maps props on the server', () => {
-        sinon.restore();
-        configStub = sinon
-          .stub(config, 'get')
-          .withArgs('server')
-          .returns(true);
-        expect(mapDispatchToProps(fakeDispatch)).toEqual({
+        const configServer = getFakeConfig({ server: true });
+
+        expect(
+          makeMapDispatchToProps({
+            WrappedComponent,
+            _config: configServer,
+            defaultInstallSource,
+          })(fakeDispatch),
+        ).toEqual({
           dispatch: fakeDispatch,
           defaultInstallSource,
           WrappedComponent,
         });
-        sinon.assert.calledWith(configStub, 'server');
       });
 
-      it('requires platformFiles', () => {
+      it('requires addon', () => {
         const props = defaultProps();
-        delete props.platformFiles;
+        delete props.addon;
+
         expect(() => {
-          makeMapDispatchToProps({})(fakeDispatch, props);
-        }).toThrowError(/platformFiles prop is required/);
+          makeMapDispatchToProps({ _config })(fakeDispatch, props);
+        }).toThrowError(/addon prop is required/);
       });
 
       it('requires userAgentInfo', () => {
         const props = defaultProps();
         delete props.userAgentInfo;
         expect(() => {
-          makeMapDispatchToProps({})(fakeDispatch, props);
+          makeMapDispatchToProps({ _config })(fakeDispatch, props);
         }).toThrowError(/userAgentInfo prop is required/);
       });
 
@@ -1531,14 +1525,14 @@ describe(__filename, () => {
         const props = defaultProps();
         delete props.location;
         expect(() => {
-          makeMapDispatchToProps({})(fakeDispatch, props);
+          makeMapDispatchToProps({ _config })(fakeDispatch, props);
         }).toThrowError(/location prop is required/);
       });
 
       it('can wrap an extension with the right props', () => {
         const props = defaultProps();
         expect(() => {
-          makeMapDispatchToProps({})(fakeDispatch, props);
+          makeMapDispatchToProps({ _config })(fakeDispatch, props);
         }).not.toThrowError();
       });
     });
